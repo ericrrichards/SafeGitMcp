@@ -9,50 +9,50 @@
 - `get_commit_by_sha` returns a structured lookup response containing `found`, an error when applicable, and complete commit-review data for a full SHA-1 hash: metadata, the primary parent used for comparison, top-level `fileCount` and `fileNames` aggregates, and every added, modified, or deleted file with baseline/current hashes and content snapshots.
 - `get_file_at_commit` returns a structured lookup response for one repository-relative path at a full SHA-1 commit, including the commit SHA, blob hash, and up to 1 MB of UTF-8 content. Backslashes and a leading `./` are accepted in the path.
 - `get_uncommitted_file_diff` returns one repository-relative file from the current uncommitted changeset, with its local `HEAD` baseline and current working-tree hashes and content snapshots. Backslashes and a leading `./` are accepted in the path.
-- `list_commits_since_sha` lists metadata-only summaries reachable from `HEAD`, across all parent paths, back to but excluding a full SHA-1 boundary commit. This includes commits introduced through a merge commit's non-primary parents. Its common response includes the supplied SHA, result count, and summaries with each commit's changed-file names but no file content.
-- `list_commits_since_timestamp` lists the same metadata-only summaries for every commit reachable from `HEAD` whose committer timestamp is on or after the supplied ISO 8601 timestamp, including commits on merged branches. Its common response includes the supplied timestamp and result count.
+- `list_commits_since_sha` walks every parent path reachable from `HEAD` and returns metadata-only summaries until each path reaches the supplied full SHA-1 boundary, which is excluded from the results. This includes commits introduced through a merge commit's non-primary parents. Its response reports the resolved boundary SHA, result count, and summaries with each commit's changed-file names but no file content.
+- `list_commits_since_timestamp` lists the same metadata-only summaries for every commit reachable from `HEAD` whose committer timestamp is on or after the supplied ISO 8601 timestamp, including commits on merged branches. Its response reports the newest returned commit's timestamp and result count.
 
 History results are ordered newest-first and include each reachable commit only once. File-change summaries for an individual merge commit continue to compare that commit with its primary parent.
 
 The server reads Git repository data through the GitReader NuGet package and never invokes the Git executable. Untracked-file discovery applies both GitReader's common development-file exclusions and the repository-root `.gitignore`.
 
-## Interactive development mode
+## Build
 
-Start the executable with `--interactive` to choose a repository and invoke the tools from the console. Enter an absolute repository path, or `.` to search from the current directory upward for the nearest `.git` folder. Results are written as indented structured JSON.
-
-Supported commands are `set_repository_root <absolute-path>`, `get_current_changeset`, `get_commit_by_sha <full-sha1>`, `get_file_at_commit <full-sha1> <repository-relative-path>`, `get_uncommitted_file_diff <repository-relative-path>`, `list_commits_since_sha <full-sha1>`, `list_commits_since_timestamp <timestamp>`, `help`, and `exit`. Interactive mode accepts standard timestamps plus common forms such as `2026-09-17-20:00` and `2026-09-17 20:00`.
-
-## Start the server
-
-Start the server without a repository argument, then call `set_repository_root` in chat:
+From the repository root, build the solution:
 
 ```cmd
-dotnet run --project E:\Code\SafeGitMcp\SafeGitMcp
+dotnet build SafeGitMcp.slnx
 ```
 
-The repository-root tool validates the path and opens the working tree before replacing the current repository. Logging is written to standard error; standard output is reserved for the MCP stdio protocol.
+## Connect an MCP client
 
-## MCP configuration example
+SafeGitMcp uses standard input and output for the MCP protocol. Configure your MCP client to launch it; do not run the stdio server in a terminal expecting an interactive prompt. Logging is written to standard error.
+
+Rider's active MCP configuration uses the following stdio entry to run this checkout:
 
 ```json
 {
   "servers": {
     "safe-git": {
-      "type": "stdio",
       "command": "dotnet",
       "args": [
         "run",
         "--project",
-        "E:\\Code\\SafeGitMcp\\SafeGitMcp",
-        "--"
+        "E:\\Code\\SafeGitMcp\\SafeGitMcp"
       ]
     }
   }
 }
 ```
 
-## Build
+After the client connects, call `set_repository_root` with an absolute working-tree path before using repository-dependent tools. The selected repository exists only for that server process; reconnecting or restarting the server requires selecting it again.
+
+## Interactive development mode
+
+Interactive mode is for local development and manual inspection. It is separate from the MCP stdio server:
 
 ```cmd
-dotnet build E:\Code\SafeGitMcp\SafeGitMcp.slnx
+dotnet run --project SafeGitMcp\SafeGitMcp.csproj -- --interactive
 ```
+
+Enter an absolute repository path, or `.` to locate the nearest parent directory containing `.git`. Results are written as indented structured JSON. Use `help` to display the supported commands; timestamps accept standard forms plus values such as `2026-09-17-20:00` and `2026-09-17 20:00`.
