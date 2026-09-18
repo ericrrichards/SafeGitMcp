@@ -13,9 +13,9 @@ The server reads Git repository data through the GitReader NuGet package and nev
 
 ## Interactive development mode
 
-Start the executable with no arguments to choose a repository and invoke the tools from the console. Results are written as indented structured JSON.
+Start the executable with no arguments to choose a repository and invoke the tools from the console. Enter an absolute repository path, or `.` to search from the current directory upward for the nearest `.git` folder. Results are written as indented structured JSON.
 
-Supported commands are `get_current_changeset`, `get_commit_by_sha <full-sha1>`, `list_commits_since_sha <full-sha1>`, `list_commits_since_timestamp <ISO-8601-timestamp>`, `help`, and `exit`.
+Supported commands are `get_current_changeset`, `get_commit_by_sha <full-sha1>`, `list_commits_since_sha <full-sha1>`, `list_commits_since_timestamp <timestamp>`, `help`, and `exit`. Interactive mode accepts standard timestamps plus common forms such as `2026-09-17-20:00` and `2026-09-17 20:00`.
 
 ## Start the server
 

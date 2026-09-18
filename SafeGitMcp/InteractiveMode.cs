@@ -14,6 +14,7 @@ internal static class InteractiveMode {
 
         while (true) {
             Console.Write("> ");
+            Console.Out.Flush();
             var line = Console.ReadLine();
             if (line is null) {
                 return;
@@ -48,7 +49,7 @@ internal static class InteractiveMode {
                 case "list_commits_since_sha" when arguments.Length == 1:
                     WriteResult(await tools.ListCommitsSinceSha(arguments[0]));
                     break;
-                case "list_commits_since_timestamp" when arguments.Length == 1 && DateTimeOffset.TryParse(arguments[0], out var timestamp):
+                case "list_commits_since_timestamp" when TryParseTimestamp(string.Join(" ", arguments), out var timestamp):
                     WriteResult(await tools.ListCommitsSinceTimestamp(timestamp));
                     break;
                 case "get_current_changeset":
@@ -61,7 +62,7 @@ internal static class InteractiveMode {
                     Console.WriteLine("Usage: list_commits_since_sha <full-sha1>");
                     break;
                 case "list_commits_since_timestamp":
-                    Console.WriteLine("Usage: list_commits_since_timestamp <ISO-8601-timestamp>");
+                    Console.WriteLine("Usage: list_commits_since_timestamp <timestamp>");
                     break;
                 default:
                     Console.WriteLine($"Unknown command: {command}. Enter 'help' for available commands.");
@@ -72,18 +73,45 @@ internal static class InteractiveMode {
 
     private static async Task<GitRepositoryContext> PromptForRepositoryAsync() {
         while (true) {
-            Console.Write("Absolute repository path (or 'exit' to quit): ");
+            Console.Write("Absolute repository path, '.' for the nearest parent repository, or 'exit' to quit: ");
+            Console.Out.Flush();
             var repositoryPath = Console.ReadLine();
             if (repositoryPath is null || repositoryPath.Equals("exit", StringComparison.OrdinalIgnoreCase)) {
                 Environment.Exit(0);
             }
 
             try {
-                return await GitRepositoryContext.CreateAsync([repositoryPath]);
+                return await GitRepositoryContext.CreateAsync([ResolveRepositoryPath(repositoryPath)]);
             } catch (Exception exception) when (exception is ArgumentException or DirectoryNotFoundException or IOException) {
                 Console.WriteLine(exception.Message);
             }
         }
+    }
+
+    private static string ResolveRepositoryPath(string repositoryPath) {
+        if (repositoryPath != ".") {
+            return repositoryPath;
+        }
+
+        for (DirectoryInfo? directory = new DirectoryInfo(Environment.CurrentDirectory); directory is not null; directory = directory.Parent) {
+            if (Directory.Exists(Path.Combine(directory.FullName, ".git"))) {
+                return directory.FullName;
+            }
+        }
+
+        throw new DirectoryNotFoundException("No .git folder was found in the current directory or any parent directory.");
+    }
+
+    private static bool TryParseTimestamp(string input, out DateTimeOffset timestamp) {
+        if (DateTimeOffset.TryParse(input, out timestamp)) {
+            return true;
+        }
+
+        if (input.Length > 10 && input[10] == '-') {
+            return DateTimeOffset.TryParse($"{input[..10]} {input[11..]}", out timestamp);
+        }
+
+        return false;
     }
 
     private static void WriteHelp() {
@@ -91,7 +119,7 @@ internal static class InteractiveMode {
         Console.WriteLine("  get_current_changeset");
         Console.WriteLine("  get_commit_by_sha <full-sha1>");
         Console.WriteLine("  list_commits_since_sha <full-sha1>");
-        Console.WriteLine("  list_commits_since_timestamp <ISO-8601-timestamp>");
+        Console.WriteLine("  list_commits_since_timestamp <timestamp>");
         Console.WriteLine("  exit");
     }
 
