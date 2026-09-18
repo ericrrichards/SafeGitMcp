@@ -45,11 +45,23 @@ internal static class InteractiveMode {
                 case "get_commit_by_sha" when arguments.Length == 1:
                     WriteResult(await tools.GetCommitBySha(arguments[0]));
                     break;
+                case "list_commits_since_sha" when arguments.Length == 1:
+                    WriteResult(await tools.ListCommitsSinceSha(arguments[0]));
+                    break;
+                case "list_commits_since_timestamp" when arguments.Length == 1 && DateTimeOffset.TryParse(arguments[0], out var timestamp):
+                    WriteResult(await tools.ListCommitsSinceTimestamp(timestamp));
+                    break;
                 case "get_current_changeset":
                     Console.WriteLine("Usage: get_current_changeset");
                     break;
                 case "get_commit_by_sha":
                     Console.WriteLine("Usage: get_commit_by_sha <full-sha1>");
+                    break;
+                case "list_commits_since_sha":
+                    Console.WriteLine("Usage: list_commits_since_sha <full-sha1>");
+                    break;
+                case "list_commits_since_timestamp":
+                    Console.WriteLine("Usage: list_commits_since_timestamp <ISO-8601-timestamp>");
                     break;
                 default:
                     Console.WriteLine($"Unknown command: {command}. Enter 'help' for available commands.");
@@ -78,6 +90,8 @@ internal static class InteractiveMode {
         Console.WriteLine("Available commands:");
         Console.WriteLine("  get_current_changeset");
         Console.WriteLine("  get_commit_by_sha <full-sha1>");
+        Console.WriteLine("  list_commits_since_sha <full-sha1>");
+        Console.WriteLine("  list_commits_since_timestamp <ISO-8601-timestamp>");
         Console.WriteLine("  exit");
     }
 

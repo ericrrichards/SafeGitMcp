@@ -67,6 +67,14 @@ internal sealed class GitRepositoryContext : IDisposable {
         return new CommitReview(commit, parent, changes);
     }
 
+    public Task<CommitHistorySearchResult> GetCommitsSinceShaAsync(Hash sha) {
+        return GetCommitHistoryAsync(sha, null);
+    }
+
+    public async Task<CommitHistoryEntry[]> GetCommitsSinceTimestampAsync(DateTimeOffset timestamp) {
+        return (await GetCommitHistoryAsync(null, timestamp)).Commits;
+    }
+
     public void Dispose() {
         _repository.Dispose();
     }
@@ -169,6 +177,52 @@ internal sealed class GitRepositoryContext : IDisposable {
         }
 
         return [.. changes];
+    }
+
+    private async Task<CommitHistorySearchResult> GetCommitHistoryAsync(Hash? boundarySha, DateTimeOffset? sinceTimestamp) {
+        var head = _repository.Head;
+        if (head is null) {
+            return boundarySha is null
+                ? CommitHistorySearchResult.Complete([])
+                : CommitHistorySearchResult.BoundaryNotReached([]);
+        }
+
+        var commits = new List<CommitHistoryEntry>();
+        Commit? commit = await head.GetHeadCommitAsync(CancellationToken.None);
+        while (commit is not null) {
+            if (boundarySha is { } boundary && commit.Hash.Equals(boundary)) {
+                return CommitHistorySearchResult.BoundaryReached(commit, [.. commits]);
+            }
+
+            var parent = await commit.GetPrimaryParentCommitAsync(CancellationToken.None);
+            if (sinceTimestamp is null || commit.Committer.Date >= sinceTimestamp.Value) {
+                commits.Add(new CommitHistoryEntry(
+                    commit,
+                    parent,
+                    await GetCommitFileNamesAsync(parent, commit)));
+            }
+
+            commit = parent;
+        }
+
+        return boundarySha is null
+            ? CommitHistorySearchResult.Complete([.. commits])
+            : CommitHistorySearchResult.BoundaryNotReached([.. commits]);
+    }
+
+    private async Task<string[]> GetCommitFileNamesAsync(Commit? parent, Commit commit) {
+        var baselineBlobs = parent is null ? new Dictionary<string, Hash>(StringComparer.Ordinal) : await GetCommitBlobHashesAsync(parent);
+        var currentBlobs = await GetCommitBlobHashesAsync(commit);
+        var paths = new HashSet<string>(baselineBlobs.Keys, StringComparer.Ordinal);
+        paths.UnionWith(currentBlobs.Keys);
+
+        return [
+            .. paths
+                .Where(path => !baselineBlobs.TryGetValue(path, out var baselineBlob) ||
+                               !currentBlobs.TryGetValue(path, out var currentBlob) ||
+                               !baselineBlob.Equals(currentBlob))
+                .OrderBy(path => path, StringComparer.Ordinal)
+        ];
     }
 
     private static bool AreEquivalent(GitBlobContent? baseline, GitBlobContent? current, Hash? baselineHash, Hash? currentHash) {
