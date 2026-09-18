@@ -14,20 +14,30 @@ internal sealed class GitRepositoryContext : IDisposable {
         _workingDirectoryPath = workingDirectoryPath;
     }
 
-    public static async Task<GitRepositoryContext> CreateAsync(string[] args, CancellationToken cancellationToken = default) {
-        var repositoryPath = GetRepositoryPathArgument(args);
+    public string WorkingDirectoryPath => _workingDirectoryPath;
 
+    public static async Task<GitRepositoryContext> CreateFromPathAsync(string repositoryPath, CancellationToken cancellationToken = default) {
         if (!Path.IsPathFullyQualified(repositoryPath)) {
-            throw new ArgumentException("The repository path must be absolute.");
+            throw new ArgumentException($"The repository root must be an absolute path. Received repository root: \"{repositoryPath}\". Working directory: \"{Environment.CurrentDirectory}\".");
         }
 
-        var fullPath = Path.GetFullPath(repositoryPath);
+        string fullPath;
+        try {
+            fullPath = Path.GetFullPath(repositoryPath);
+        } catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException) {
+            throw new ArgumentException($"The repository root could not be resolved: \"{repositoryPath}\". Working directory: \"{Environment.CurrentDirectory}\".", exception);
+        }
+
         if (!Directory.Exists(fullPath)) {
-            throw new DirectoryNotFoundException($"The repository path does not exist: {fullPath}");
+            throw new DirectoryNotFoundException($"The repository root does not exist: \"{fullPath}\". Received repository root: \"{repositoryPath}\".");
         }
 
-        var repository = await Repository.Factory.OpenStructureAsync(fullPath, cancellationToken);
-        return new GitRepositoryContext(repository, fullPath);
+        try {
+            var repository = await Repository.Factory.OpenStructureAsync(fullPath, cancellationToken);
+            return new GitRepositoryContext(repository, fullPath);
+        } catch (Exception exception) when (exception is not OperationCanceledException) {
+            throw new ArgumentException($"The repository root could not be opened: \"{fullPath}\". Received repository root: \"{repositoryPath}\".", exception);
+        }
     }
 
     public async Task<CurrentChangesetFile[]> GetCurrentChangesetFilesAsync() {
@@ -318,17 +328,4 @@ internal sealed class GitRepositoryContext : IDisposable {
         }
     }
 
-    private static string GetRepositoryPathArgument(string[] args) {
-        if (args.Length == 1 && !args[0].StartsWith("--", StringComparison.Ordinal)) {
-            return args[0];
-        }
-
-        for (var index = 0; index < args.Length; index++) {
-            if (args[index] == "--repository" && index + 1 < args.Length) {
-                return args[index + 1];
-            }
-        }
-
-        throw new ArgumentException("Pass the target repository as an absolute path or with --repository <absolute-path>.");
-    }
 }

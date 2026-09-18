@@ -3,12 +3,10 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SafeGitMcp.Tools;
 
-if (args.Length == 0) {
+if (args.Length == 1 && args[0] == "--interactive") {
     await InteractiveMode.RunAsync();
     return;
 }
-
-var repository = await GitRepositoryContext.CreateAsync(args);
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -21,6 +19,6 @@ builder.Services
     .WithStdioServerTransport()
     .WithTools<GitRepositoryTools>();
 
-builder.Services.AddSingleton(repository);
+builder.Services.AddSingleton<GitRepositoryContextManager>();
 
 await builder.Build().RunAsync();

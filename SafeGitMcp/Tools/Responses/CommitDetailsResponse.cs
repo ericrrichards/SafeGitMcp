@@ -1,4 +1,5 @@
 ﻿using GitReader.Structures;
+using System.Text.Json.Serialization;
 
 namespace SafeGitMcp.Tools.Responses;
 
@@ -14,13 +15,16 @@ public sealed class CommitDetailsResponse {
 
     public string Sha => commit.Hash.ToString();
     public string AuthorName => commit.Author.Name;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? AuthorEmail => commit.Author.MailAddress;
     public DateTimeOffset AuthorDate => commit.Author.Date;
     public string CommitterName => commit.Committer.Name;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? CommitterEmail => commit.Committer.MailAddress;
     public DateTimeOffset CommitterDate => commit.Committer.Date;
     public string Subject => commit.Subject;
     public string Body => commit.Body;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? ComparisonParentSha => comparisonParent?.Hash.ToString();
     public CommitFileChange[] Changes { get; }
     public int FileCount => Changes.Length;

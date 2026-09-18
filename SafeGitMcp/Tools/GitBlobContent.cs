@@ -1,4 +1,6 @@
-﻿namespace SafeGitMcp.Tools;
+﻿using System.Text.Json.Serialization;
+
+namespace SafeGitMcp.Tools;
 
 public sealed class GitBlobContent {
     private GitBlobContent(bool isBinary, bool isTruncated, int bytesReturned, string? text) {
@@ -11,6 +13,7 @@ public sealed class GitBlobContent {
     public bool IsBinary { get; }
     public bool IsTruncated { get; }
     public int BytesReturned { get; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Text { get; }
 
     public static GitBlobContent Binary(bool isTruncated, int bytesReturned) {

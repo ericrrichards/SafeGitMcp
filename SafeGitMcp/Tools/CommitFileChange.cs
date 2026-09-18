@@ -1,4 +1,5 @@
 ﻿using GitReader;
+using System.Text.Json.Serialization;
 
 namespace SafeGitMcp.Tools;
 
@@ -29,8 +30,12 @@ public sealed class CommitFileChange {
         (not null, null) => "Deleted",
         _ => "Modified"
     };
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? BaselineHash => baselineHash?.ToString();
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public GitBlobContent? BaselineContent { get; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? CurrentHash => currentHash?.ToString();
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public GitBlobContent? CurrentContent { get; }
 }

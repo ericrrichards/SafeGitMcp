@@ -25,6 +25,11 @@ public sealed class ListCommitsResponse {
         Error = error;
     }
 
+    private ListCommitsResponse(string error)
+        : this([]) {
+        Error = error;
+    }
+
     public string? SinceSha => _boundary?.Sha ?? _requestedSha;
     public DateTimeOffset? SinceTimestamp => _boundary?.CommitterDate ?? _requestedTimestamp;
     public string? Error { get; }
@@ -44,5 +49,9 @@ public sealed class ListCommitsResponse {
 
     public static ListCommitsResponse FailureSinceSha(string sha, string error) {
         return new ListCommitsResponse(sha, error);
+    }
+
+    public static ListCommitsResponse Failure(string error) {
+        return new ListCommitsResponse(error);
     }
 }

@@ -11,14 +11,7 @@
       "transport": {
         "type": "stdio"
       },
-      "packageArguments": [
-        {
-          "name": "repository",
-          "description": "Absolute path of the local Git repository to inspect.",
-          "required": true,
-          "type": "string"
-        }
-      ],
+      "packageArguments": [],
       "environmentVariables": []
     }
   ],

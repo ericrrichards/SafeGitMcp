@@ -7,8 +7,9 @@ internal static class InteractiveMode {
     };
 
     public static async Task RunAsync() {
-        using var repository = await PromptForRepositoryAsync();
-        var tools = new GitRepositoryTools(repository);
+        using var repositories = new GitRepositoryContextManager();
+        await PromptForRepositoryAsync(repositories);
+        var tools = new GitRepositoryTools(repositories);
 
         Console.WriteLine("Interactive mode. Enter 'help' for available commands or 'exit' to quit.");
 
@@ -40,6 +41,9 @@ internal static class InteractiveMode {
                 case "help":
                     WriteHelp();
                     break;
+                case "set_repository_root" when arguments.Length == 1:
+                    WriteResult(await tools.SetRepositoryRoot(arguments[0]));
+                    break;
                 case "get_current_changeset" when arguments.Length == 0:
                     WriteResult(await tools.GetCurrentChangeset());
                     break;
@@ -60,6 +64,9 @@ internal static class InteractiveMode {
                     break;
                 case "get_current_changeset":
                     Console.WriteLine("Usage: get_current_changeset");
+                    break;
+                case "set_repository_root":
+                    Console.WriteLine("Usage: set_repository_root <absolute-path>");
                     break;
                 case "get_commit_by_sha":
                     Console.WriteLine("Usage: get_commit_by_sha <full-sha1>");
@@ -83,7 +90,7 @@ internal static class InteractiveMode {
         }
     }
 
-    private static async Task<GitRepositoryContext> PromptForRepositoryAsync() {
+    private static async Task PromptForRepositoryAsync(GitRepositoryContextManager repositories) {
         while (true) {
             Console.Write("Absolute repository path, '.' for the nearest parent repository, or 'exit' to quit: ");
             Console.Out.Flush();
@@ -93,7 +100,8 @@ internal static class InteractiveMode {
             }
 
             try {
-                return await GitRepositoryContext.CreateAsync([ResolveRepositoryPath(repositoryPath)]);
+                await repositories.SetRepositoryRootAsync(ResolveRepositoryPath(repositoryPath));
+                return;
             } catch (Exception exception) when (exception is ArgumentException or DirectoryNotFoundException or IOException) {
                 Console.WriteLine(exception.Message);
             }
@@ -128,6 +136,7 @@ internal static class InteractiveMode {
 
     private static void WriteHelp() {
         Console.WriteLine("Available commands:");
+        Console.WriteLine("  set_repository_root <absolute-path>");
         Console.WriteLine("  get_current_changeset");
         Console.WriteLine("  get_commit_by_sha <full-sha1>");
         Console.WriteLine("  get_file_at_commit <full-sha1> <repository-relative-path>");
