@@ -31,6 +31,34 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
                 review.Changes));
     }
 
+    [McpServerTool(Name = "get_file_at_commit", Title = "Get File at Commit", UseStructuredContent = true)]
+    [Description("Gets a repository-relative file's blob hash and content at a specific full SHA-1 commit.")]
+    public async Task<CommitFileLookupResponse> GetFileAtCommit(
+        [Description("The complete 40-character hexadecimal SHA-1 commit hash.")]
+        string sha,
+        [Description("The repository-relative path of the file. Forward slashes and backslashes are accepted.")]
+        string path) {
+        if (string.IsNullOrWhiteSpace(sha) || !Hash.TryParse(sha.Trim(), out var hash)) {
+            return CommitFileLookupResponse.Failure("The SHA must be a complete 40-character hexadecimal SHA-1 hash.");
+        }
+
+        var normalizedPath = path?.Trim().Replace('\\', '/') ?? string.Empty;
+        while (normalizedPath.StartsWith("./", StringComparison.Ordinal)) {
+            normalizedPath = normalizedPath[2..];
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedPath) || normalizedPath == ".." || normalizedPath.StartsWith("../", StringComparison.Ordinal) || normalizedPath.StartsWith("/", StringComparison.Ordinal)) {
+            return CommitFileLookupResponse.Failure("The file path must be relative to the repository root.");
+        }
+
+        var file = await repository.GetCommitFileAsync(hash, normalizedPath);
+        if (file is null) {
+            return CommitFileLookupResponse.Failure("No file with that path exists at the specified commit.");
+        }
+
+        return CommitFileLookupResponse.FromFile(new CommitFileDetailsResponse(file));
+    }
+
     [McpServerTool(Name = "list_commits_since_sha", Title = "List Commits Since SHA", UseStructuredContent = true)]
     [Description("Lists metadata for commits from HEAD back to, but excluding, the specified full SHA-1 commit.")]
     public async Task<ListCommitsResponse> ListCommitsSinceSha([Description("The complete 40-character hexadecimal SHA-1 commit hash to exclude from the results.")] string sha) {

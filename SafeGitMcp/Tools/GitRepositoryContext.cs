@@ -67,6 +67,21 @@ internal sealed class GitRepositoryContext : IDisposable {
         return new CommitReview(commit, parent, changes);
     }
 
+    public async Task<CommitFileAtCommit?> GetCommitFileAsync(Hash commitHash, string path) {
+        var commit = await _repository.GetCommitAsync(commitHash, CancellationToken.None);
+        if (commit is null) {
+            return null;
+        }
+
+        var root = await commit.GetTreeRootAsync(CancellationToken.None);
+        var blobHash = FindBlobHash(root.Children, path.Split('/', StringSplitOptions.RemoveEmptyEntries), 0);
+        if (blobHash is null || await ReadBlobContentAsync(blobHash) is not { } content) {
+            return null;
+        }
+
+        return new CommitFileAtCommit(commit, path, blobHash.Value, content);
+    }
+
     public Task<CommitHistorySearchResult> GetCommitsSinceShaAsync(Hash sha) {
         return GetCommitHistoryAsync(sha, null);
     }
@@ -150,6 +165,25 @@ internal sealed class GitRepositoryContext : IDisposable {
         var blobs = new Dictionary<string, Hash>(StringComparer.Ordinal);
         AddTreeBlobs(root.Children, string.Empty, blobs);
         return blobs;
+    }
+
+    private static Hash? FindBlobHash(IEnumerable<TreeEntry> entries, string[] pathSegments, int segmentIndex) {
+        if (segmentIndex >= pathSegments.Length) {
+            return null;
+        }
+
+        var entry = entries.FirstOrDefault(entry => string.Equals(entry.Name, pathSegments[segmentIndex], StringComparison.Ordinal));
+        if (entry is null) {
+            return null;
+        }
+
+        if (segmentIndex == pathSegments.Length - 1) {
+            return entry is TreeBlobEntry blob ? (Hash?)blob.Hash : null;
+        }
+
+        return entry is IParentTreeEntry directory
+            ? FindBlobHash(directory.Children, pathSegments, segmentIndex + 1)
+            : null;
     }
 
     private async Task<CommitFileChange[]> GetCommitChangesAsync(Commit? parent, Commit commit) {

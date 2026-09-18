@@ -46,6 +46,9 @@ internal static class InteractiveMode {
                 case "get_commit_by_sha" when arguments.Length == 1:
                     WriteResult(await tools.GetCommitBySha(arguments[0]));
                     break;
+                case "get_file_at_commit" when arguments.Length == 2:
+                    WriteResult(await tools.GetFileAtCommit(arguments[0], arguments[1]));
+                    break;
                 case "list_commits_since_sha" when arguments.Length == 1:
                     WriteResult(await tools.ListCommitsSinceSha(arguments[0]));
                     break;
@@ -57,6 +60,9 @@ internal static class InteractiveMode {
                     break;
                 case "get_commit_by_sha":
                     Console.WriteLine("Usage: get_commit_by_sha <full-sha1>");
+                    break;
+                case "get_file_at_commit":
+                    Console.WriteLine("Usage: get_file_at_commit <full-sha1> <repository-relative-path>");
                     break;
                 case "list_commits_since_sha":
                     Console.WriteLine("Usage: list_commits_since_sha <full-sha1>");
@@ -118,6 +124,7 @@ internal static class InteractiveMode {
         Console.WriteLine("Available commands:");
         Console.WriteLine("  get_current_changeset");
         Console.WriteLine("  get_commit_by_sha <full-sha1>");
+        Console.WriteLine("  get_file_at_commit <full-sha1> <repository-relative-path>");
         Console.WriteLine("  list_commits_since_sha <full-sha1>");
         Console.WriteLine("  list_commits_since_timestamp <timestamp>");
         Console.WriteLine("  exit");
