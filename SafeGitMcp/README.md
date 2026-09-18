@@ -9,8 +9,10 @@
 - `get_commit_by_sha` returns a structured lookup response containing `found`, an error when applicable, and complete commit-review data for a full SHA-1 hash: metadata, the primary parent used for comparison, top-level `fileCount` and `fileNames` aggregates, and every added, modified, or deleted file with baseline/current hashes and content snapshots.
 - `get_file_at_commit` returns a structured lookup response for one repository-relative path at a full SHA-1 commit, including the commit SHA, blob hash, and up to 1 MB of UTF-8 content. Backslashes and a leading `./` are accepted in the path.
 - `get_uncommitted_file_diff` returns one repository-relative file from the current uncommitted changeset, with its local `HEAD` baseline and current working-tree hashes and content snapshots. Backslashes and a leading `./` are accepted in the path.
-- `list_commits_since_sha` lists metadata-only summaries from `HEAD` back to, but excluding, a full SHA-1 commit on the primary-parent history. Its common response includes the supplied SHA, result count, and summaries with each commit's changed-file names but no file content.
-- `list_commits_since_timestamp` lists the same metadata-only summaries for primary-parent-history commits whose committer timestamp is on or after the supplied ISO 8601 timestamp. Its common response includes the supplied timestamp and result count.
+- `list_commits_since_sha` lists metadata-only summaries reachable from `HEAD`, across all parent paths, back to but excluding a full SHA-1 boundary commit. This includes commits introduced through a merge commit's non-primary parents. Its common response includes the supplied SHA, result count, and summaries with each commit's changed-file names but no file content.
+- `list_commits_since_timestamp` lists the same metadata-only summaries for every commit reachable from `HEAD` whose committer timestamp is on or after the supplied ISO 8601 timestamp, including commits on merged branches. Its common response includes the supplied timestamp and result count.
+
+History results are ordered newest-first and include each reachable commit only once. File-change summaries for an individual merge commit continue to compare that commit with its primary parent.
 
 The server reads Git repository data through the GitReader NuGet package and never invokes the Git executable. Untracked-file discovery applies both GitReader's common development-file exclusions and the repository-root `.gitignore`.
 
