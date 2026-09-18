@@ -42,12 +42,7 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
             return CommitFileLookupResponse.Failure("The SHA must be a complete 40-character hexadecimal SHA-1 hash.");
         }
 
-        var normalizedPath = path?.Trim().Replace('\\', '/') ?? string.Empty;
-        while (normalizedPath.StartsWith("./", StringComparison.Ordinal)) {
-            normalizedPath = normalizedPath[2..];
-        }
-
-        if (string.IsNullOrWhiteSpace(normalizedPath) || normalizedPath == ".." || normalizedPath.StartsWith("../", StringComparison.Ordinal) || normalizedPath.StartsWith("/", StringComparison.Ordinal)) {
+        if (!TryNormalizeRepositoryPath(path, out var normalizedPath)) {
             return CommitFileLookupResponse.Failure("The file path must be relative to the repository root.");
         }
 
@@ -57,6 +52,23 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
         }
 
         return CommitFileLookupResponse.FromFile(new CommitFileDetailsResponse(file));
+    }
+
+    [McpServerTool(Name = "get_uncommitted_file_diff", Title = "Get Uncommitted File Diff", UseStructuredContent = true)]
+    [Description("Gets one uncommitted file's current working-tree content against its version in local HEAD.")]
+    public async Task<UncommittedFileDiffResponse> GetUncommittedFileDiff(
+        [Description("The repository-relative path of the uncommitted file. Forward slashes and backslashes are accepted.")]
+        string path) {
+        if (!TryNormalizeRepositoryPath(path, out var normalizedPath)) {
+            return UncommittedFileDiffResponse.Failure("The file path must be relative to the repository root.");
+        }
+
+        var file = await repository.GetCurrentChangesetFileAsync(normalizedPath);
+        if (file is null) {
+            return UncommittedFileDiffResponse.Failure("The file is not part of the current uncommitted changeset.");
+        }
+
+        return UncommittedFileDiffResponse.FromFile(file);
     }
 
     [McpServerTool(Name = "list_commits_since_sha", Title = "List Commits Since SHA", UseStructuredContent = true)]
@@ -87,5 +99,17 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
             [
                 .. commits.Select(commit => new CommitSummaryResponse(commit))
             ]);
+    }
+
+    private static bool TryNormalizeRepositoryPath(string path, out string normalizedPath) {
+        normalizedPath = path.Trim().Replace('\\', '/');
+        while (normalizedPath.StartsWith("./", StringComparison.Ordinal)) {
+            normalizedPath = normalizedPath[2..];
+        }
+
+        return !string.IsNullOrWhiteSpace(normalizedPath) &&
+               normalizedPath != ".." &&
+               !normalizedPath.StartsWith("../", StringComparison.Ordinal) &&
+               !normalizedPath.StartsWith("/", StringComparison.Ordinal);
     }
 }

@@ -31,14 +31,8 @@ internal sealed class GitRepositoryContext : IDisposable {
     }
 
     public async Task<CurrentChangesetFile[]> GetCurrentChangesetFilesAsync() {
-        var status = await _repository.GetWorkingDirectoryStatusAsync(
-            await GetChangesetIgnoreFilterAsync(),
-            CancellationToken.None);
+        var filesByPath = await GetCurrentChangesetCandidatesAsync();
         var headBlobs = await GetHeadBlobHashesAsync();
-        var filesByPath = new Dictionary<string, WorkingDirectoryFile>(StringComparer.Ordinal);
-        AddFiles(filesByPath, status.StagedFiles);
-        AddFiles(filesByPath, status.UnstagedFiles);
-        AddFiles(filesByPath, status.UntrackedFiles);
 
         var files = new List<CurrentChangesetFile>(filesByPath.Count);
         foreach (var file in filesByPath.Values) {
@@ -54,6 +48,24 @@ internal sealed class GitRepositoryContext : IDisposable {
         }
 
         return [.. files];
+    }
+
+    public async Task<CurrentChangesetFile?> GetCurrentChangesetFileAsync(string path) {
+        var filesByPath = await GetCurrentChangesetCandidatesAsync();
+        if (!filesByPath.TryGetValue(path, out var file)) {
+            return null;
+        }
+
+        var headBlobs = await GetHeadBlobHashesAsync();
+        var hasBaseline = headBlobs.TryGetValue(file.Path, out var headHash);
+        Hash? baselineHash = hasBaseline ? (Hash?)headHash : null;
+        var baselineContent = await ReadBlobContentAsync(baselineHash);
+        var currentContent = await ReadWorkingTreeContentAsync(file.Path);
+        if (AreEquivalent(baselineContent, currentContent, baselineHash, file.WorkingTreeHash)) {
+            return null;
+        }
+
+        return new CurrentChangesetFile(file, baselineHash, baselineContent, currentContent);
     }
 
     public async Task<CommitReview?> GetCommitReviewAsync(Hash hash) {
@@ -149,6 +161,17 @@ internal sealed class GitRepositoryContext : IDisposable {
         await using var stream = File.OpenRead(gitIgnorePath);
         var repositoryFilter = await Glob.CreateExcludeFilterFromGitignoreAsync(stream, CancellationToken.None);
         return Glob.Combine(commonFilter, repositoryFilter);
+    }
+
+    private async Task<Dictionary<string, WorkingDirectoryFile>> GetCurrentChangesetCandidatesAsync() {
+        var status = await _repository.GetWorkingDirectoryStatusAsync(
+            await GetChangesetIgnoreFilterAsync(),
+            CancellationToken.None);
+        var filesByPath = new Dictionary<string, WorkingDirectoryFile>(StringComparer.Ordinal);
+        AddFiles(filesByPath, status.StagedFiles);
+        AddFiles(filesByPath, status.UnstagedFiles);
+        AddFiles(filesByPath, status.UntrackedFiles);
+        return filesByPath;
     }
 
     private async Task<Dictionary<string, Hash>> GetHeadBlobHashesAsync() {
