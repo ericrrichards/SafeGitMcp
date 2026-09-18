@@ -31,45 +31,33 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
             }
 
             files.Add(new CurrentChangesetFile(
-                file.Path,
-                file.Status.ToString(),
-                baselineHash?.ToString(),
+                file,
+                baselineHash,
                 baselineContent,
-                file.WorkingTreeHash?.ToString(),
                 currentContent));
         }
 
-        return new CurrentChangesetResponse(files.Count, [.. files]);
+        return new CurrentChangesetResponse(files);
     }
 
     [McpServerTool(Name = "get_commit_by_sha", Title = "Get Commit by SHA", UseStructuredContent = true)]
     [Description("Gets a specific commit by its full SHA from the repository supplied when the server was started.")]
     public async Task<CommitLookupResponse> GetCommitBySha([Description("The complete 40-character hexadecimal SHA-1 commit hash.")] string sha) {
         if (string.IsNullOrWhiteSpace(sha) || !Hash.TryParse(sha.Trim(), out var hash)) {
-            return new CommitLookupResponse(false, "The SHA must be a complete 40-character hexadecimal SHA-1 hash.", null);
+            return CommitLookupResponse.Failure("The SHA must be a complete 40-character hexadecimal SHA-1 hash.");
         }
 
         var commit = await repository.Repository.GetCommitAsync(hash, CancellationToken.None);
         if (commit is null) {
-            return new CommitLookupResponse(false, "No commit with that SHA exists in this repository.", null);
+            return CommitLookupResponse.Failure("No commit with that SHA exists in this repository.");
         }
 
         var parent = await commit.GetPrimaryParentCommitAsync(CancellationToken.None);
         var changes = await GetCommitChangesAsync(parent, commit);
-        return new CommitLookupResponse(
-            true,
-            null,
+        return CommitLookupResponse.FromCommit(
             new CommitDetailsResponse(
-                commit.Hash.ToString(),
-                commit.Author.Name,
-                commit.Author.MailAddress,
-                commit.Author.Date,
-                commit.Committer.Name,
-                commit.Committer.MailAddress,
-                commit.Committer.Date,
-                commit.Subject,
-                commit.Body,
-                parent?.Hash.ToString(),
+                commit,
+                parent,
                 changes));
     }
 
@@ -101,13 +89,13 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
         var isTruncated = bytesRead > MaximumBlobBytes;
         var content = buffer.AsSpan(0, Math.Min(bytesRead, MaximumBlobBytes));
         if (content.Contains((byte)0)) {
-            return new GitBlobContent(true, isTruncated, content.Length, null);
+            return GitBlobContent.Binary(isTruncated, content.Length);
         }
 
         try {
-            return new GitBlobContent(false, isTruncated, content.Length, new UTF8Encoding(false, true).GetString(content));
+            return GitBlobContent.TextContent(isTruncated, content.Length, new UTF8Encoding(false, true).GetString(content));
         } catch (DecoderFallbackException) {
-            return new GitBlobContent(true, isTruncated, content.Length, null);
+            return GitBlobContent.Binary(isTruncated, content.Length);
         }
     }
 
@@ -185,22 +173,13 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
             Hash? currentHash = hasCurrent ? (Hash?)currentBlob : null;
             changes.Add(new CommitFileChange(
                 path,
-                GetChangeType(hasBaseline, hasCurrent),
-                baselineHash?.ToString(),
+                baselineHash,
                 await ReadBlobContentAsync(baselineHash),
-                currentHash?.ToString(),
+                currentHash,
                 await ReadBlobContentAsync(currentHash)));
         }
 
         return [.. changes];
-    }
-
-    private static string GetChangeType(bool hasBaseline, bool hasCurrent) {
-        return (hasBaseline, hasCurrent) switch {
-            (false, true) => "Added",
-            (true, false) => "Deleted",
-            _ => "Modified"
-        };
     }
 
     private static void AddTreeBlobs(IEnumerable<TreeEntry> entries, string directoryPath, Dictionary<string, Hash> blobs) {
