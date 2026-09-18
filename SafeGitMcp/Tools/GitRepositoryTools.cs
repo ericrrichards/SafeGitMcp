@@ -112,7 +112,7 @@ internal sealed class GitRepositoryTools(GitRepositoryContextManager repositorie
 
         var history = await repositories.UseAsync(repository => repository.GetCommitsSinceShaAsync(hash));
         if (!history.ReachedBoundary || history.BoundaryCommit is null) {
-            return ListCommitsResponse.FailureSinceSha(sha, "The SHA is not reachable from the repository's HEAD commit through its primary-parent history.");
+            return ListCommitsResponse.FailureSinceSha(sha, "The SHA is not reachable from the repository's HEAD commit.");
         }
 
         return ListCommitsResponse.ForSha(

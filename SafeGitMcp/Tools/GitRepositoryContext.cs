@@ -255,10 +255,25 @@ internal sealed class GitRepositoryContext : IDisposable {
         }
 
         var commits = new List<CommitHistoryEntry>();
-        Commit? commit = await head.GetHeadCommitAsync(CancellationToken.None);
-        while (commit is not null) {
+        var pending = new Queue<Hash>();
+        var visited = new HashSet<Hash>();
+        Commit? boundaryCommit = null;
+        pending.Enqueue((await head.GetHeadCommitAsync(CancellationToken.None)).Hash);
+
+        while (pending.Count > 0) {
+            var hash = pending.Dequeue();
+            if (!visited.Add(hash)) {
+                continue;
+            }
+
+            var commit = await _repository.GetCommitAsync(hash, CancellationToken.None);
+            if (commit is null) {
+                continue;
+            }
+
             if (boundarySha is { } boundary && commit.Hash.Equals(boundary)) {
-                return CommitHistorySearchResult.BoundaryReached(commit, [.. commits]);
+                boundaryCommit = commit;
+                continue;
             }
 
             var parent = await commit.GetPrimaryParentCommitAsync(CancellationToken.None);
@@ -269,12 +284,40 @@ internal sealed class GitRepositoryContext : IDisposable {
                     await GetCommitFileNamesAsync(parent, commit)));
             }
 
-            commit = parent;
+            foreach (var parentHash in await GetParentHashesAsync(commit)) {
+                if (!visited.Contains(parentHash)) {
+                    pending.Enqueue(parentHash);
+                }
+            }
+        }
+
+        commits.Sort(static (left, right) => right.Commit.Committer.Date.CompareTo(left.Commit.Committer.Date));
+
+        if (boundaryCommit is not null) {
+            return CommitHistorySearchResult.BoundaryReached(boundaryCommit, [.. commits]);
         }
 
         return boundarySha is null
             ? CommitHistorySearchResult.Complete([.. commits])
             : CommitHistorySearchResult.BoundaryNotReached([.. commits]);
+    }
+
+    private async Task<Hash[]> GetParentHashesAsync(Commit commit) {
+        using var result = await _repository.OpenRawObjectStreamAsync(commit.Hash, CancellationToken.None);
+        if (result.Type != ObjectTypes.Commit) {
+            return [];
+        }
+
+        using var reader = new StreamReader(result.Stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: false);
+        var parents = new List<Hash>();
+        while (await reader.ReadLineAsync(CancellationToken.None) is { } line && line.Length > 0) {
+            const string parentPrefix = "parent ";
+            if (line.StartsWith(parentPrefix, StringComparison.Ordinal) && Hash.TryParse(line[parentPrefix.Length..], out var parentHash)) {
+                parents.Add(parentHash);
+            }
+        }
+
+        return [.. parents];
     }
 
     private async Task<string[]> GetCommitFileNamesAsync(Commit? parent, Commit commit) {
