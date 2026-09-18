@@ -6,7 +6,7 @@ using SafeGitMcp.Tools;
 if (args.Length == 0) {
     await InteractiveMode.RunAsync();
     return;
-}.
+}
 
 var repository = await GitRepositoryContext.CreateAsync(args);
 

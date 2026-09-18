@@ -3,11 +3,13 @@
 namespace SafeGitMcp.Tools;
 
 internal sealed class GitRepositoryContext : IDisposable {
-    private GitRepositoryContext(StructuredRepository repository) {
+    private GitRepositoryContext(StructuredRepository repository, string workingDirectoryPath) {
         Repository = repository;
+        WorkingDirectoryPath = workingDirectoryPath;
     }
 
     public StructuredRepository Repository { get; }
+    public string WorkingDirectoryPath { get; }
 
     public static async Task<GitRepositoryContext> CreateAsync(string[] args, CancellationToken cancellationToken = default) {
         var repositoryPath = GetRepositoryPathArgument(args);
@@ -22,7 +24,7 @@ internal sealed class GitRepositoryContext : IDisposable {
         }
 
         var repository = await GitReader.Repository.Factory.OpenStructureAsync(fullPath, cancellationToken);
-        return new GitRepositoryContext(repository);
+        return new GitRepositoryContext(repository, fullPath);
     }
 
     public void Dispose() {

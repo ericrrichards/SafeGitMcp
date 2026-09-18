@@ -1,60 +1,52 @@
 using System.Text.Json;
 using SafeGitMcp.Tools;
 
-internal static class InteractiveMode
-{
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
+internal static class InteractiveMode {
+    private static readonly JsonSerializerOptions SerializerOptions = new() {
         WriteIndented = true
     };
 
-    public static async Task RunAsync()
-    {
+    public static async Task RunAsync() {
         using var repository = await PromptForRepositoryAsync();
         var tools = new GitRepositoryTools(repository);
 
         Console.WriteLine("Interactive mode. Enter 'help' for available commands or 'exit' to quit.");
 
-        while (true)
-        {
+        while (true) {
             Console.Write("> ");
             var line = Console.ReadLine();
-            if (line is null)
-            {
+            if (line is null) {
                 return;
             }
 
             var commandLine = CommandLine.TryParse(line);
-            if (!commandLine.IsValid)
-            {
+            if (!commandLine.IsValid) {
                 Console.WriteLine(commandLine.Error);
                 continue;
             }
 
-            if (commandLine.Arguments.Count == 0)
-            {
+            if (commandLine.Arguments.Count == 0) {
                 continue;
             }
 
             var command = commandLine.Arguments[0];
             var arguments = commandLine.Arguments.Skip(1).ToArray();
 
-            switch (command)
-            {
+            switch (command) {
                 case "exit":
                 case "quit":
                     return;
                 case "help":
                     WriteHelp();
                     break;
-                case "get_staged_changes" when arguments.Length == 0:
-                    WriteResult(await tools.GetStagedChanges());
+                case "get_current_changeset" when arguments.Length == 0:
+                    WriteResult(await tools.GetCurrentChangeset());
                     break;
                 case "get_commit_by_sha" when arguments.Length == 1:
                     WriteResult(await tools.GetCommitBySha(arguments[0]));
                     break;
-                case "get_staged_changes":
-                    Console.WriteLine("Usage: get_staged_changes");
+                case "get_current_changeset":
+                    Console.WriteLine("Usage: get_current_changeset");
                     break;
                 case "get_commit_by_sha":
                     Console.WriteLine("Usage: get_commit_by_sha <full-sha1>");
@@ -66,74 +58,59 @@ internal static class InteractiveMode
         }
     }
 
-    private static async Task<GitRepositoryContext> PromptForRepositoryAsync()
-    {
-        while (true)
-        {
+    private static async Task<GitRepositoryContext> PromptForRepositoryAsync() {
+        while (true) {
             Console.Write("Absolute repository path (or 'exit' to quit): ");
             var repositoryPath = Console.ReadLine();
-            if (repositoryPath is null || repositoryPath.Equals("exit", StringComparison.OrdinalIgnoreCase))
-            {
+            if (repositoryPath is null || repositoryPath.Equals("exit", StringComparison.OrdinalIgnoreCase)) {
                 Environment.Exit(0);
             }
 
-            try
-            {
+            try {
                 return await GitRepositoryContext.CreateAsync([repositoryPath]);
-            }
-            catch (Exception exception) when (exception is ArgumentException or DirectoryNotFoundException or IOException)
-            {
+            } catch (Exception exception) when (exception is ArgumentException or DirectoryNotFoundException or IOException) {
                 Console.WriteLine(exception.Message);
             }
         }
     }
 
-    private static void WriteHelp()
-    {
+    private static void WriteHelp() {
         Console.WriteLine("Available commands:");
-        Console.WriteLine("  get_staged_changes");
+        Console.WriteLine("  get_current_changeset");
         Console.WriteLine("  get_commit_by_sha <full-sha1>");
         Console.WriteLine("  exit");
     }
 
-    private static void WriteResult<T>(T result)
-    {
+    private static void WriteResult<T>(T result) {
         Console.WriteLine(JsonSerializer.Serialize(result, SerializerOptions));
     }
 }
 
-internal sealed record CommandLine(bool IsValid, IReadOnlyList<string> Arguments, string? Error)
-{
-    public static CommandLine TryParse(string input)
-    {
+internal sealed record CommandLine(bool IsValid, IReadOnlyList<string> Arguments, string? Error) {
+    public static CommandLine TryParse(string input) {
         var arguments = new List<string>();
         var currentArgument = new System.Text.StringBuilder();
         var isQuoted = false;
         var isEscaped = false;
 
-        foreach (var character in input)
-        {
-            if (isEscaped)
-            {
+        foreach (var character in input) {
+            if (isEscaped) {
                 currentArgument.Append(character);
                 isEscaped = false;
                 continue;
             }
 
-            if (character == '\\')
-            {
+            if (character == '\\') {
                 isEscaped = true;
                 continue;
             }
 
-            if (character == '"')
-            {
+            if (character == '"') {
                 isQuoted = !isQuoted;
                 continue;
             }
 
-            if (char.IsWhiteSpace(character) && !isQuoted)
-            {
+            if (char.IsWhiteSpace(character) && !isQuoted) {
                 AddCurrentArgument(arguments, currentArgument);
                 continue;
             }
@@ -141,13 +118,11 @@ internal sealed record CommandLine(bool IsValid, IReadOnlyList<string> Arguments
             currentArgument.Append(character);
         }
 
-        if (isEscaped)
-        {
+        if (isEscaped) {
             currentArgument.Append('\\');
         }
 
-        if (isQuoted)
-        {
+        if (isQuoted) {
             return new CommandLine(false, [], "Unterminated quoted argument.");
         }
 
@@ -155,10 +130,8 @@ internal sealed record CommandLine(bool IsValid, IReadOnlyList<string> Arguments
         return new CommandLine(true, arguments, null);
     }
 
-    private static void AddCurrentArgument(List<string> arguments, System.Text.StringBuilder currentArgument)
-    {
-        if (currentArgument.Length > 0)
-        {
+    private static void AddCurrentArgument(List<string> arguments, System.Text.StringBuilder currentArgument) {
+        if (currentArgument.Length > 0) {
             arguments.Add(currentArgument.ToString());
             currentArgument.Clear();
         }
