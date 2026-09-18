@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "description": "A read-only MCP server for inspecting a local Git repository.",
+  "name": "SafeGitMcp",
+  "version": "0.1.0-beta",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "SafeGitMcp",
+      "version": "0.1.0-beta",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "name": "repository",
+          "description": "Absolute path of the local Git repository to inspect.",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "environmentVariables": []
+    }
+  ],
+  "repository": {}
+}
