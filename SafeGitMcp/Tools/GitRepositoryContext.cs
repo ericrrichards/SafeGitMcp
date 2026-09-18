@@ -221,14 +221,3 @@ internal sealed class GitRepositoryContext : IDisposable {
         throw new ArgumentException("Pass the target repository as an absolute path or with --repository <absolute-path>.");
     }
 }
-internal sealed class CommitReview {
-    public CommitReview(Commit commit, Commit? comparisonParent, CommitFileChange[] changes) {
-        Commit = commit;
-        ComparisonParent = comparisonParent;
-        Changes = changes;
-    }
-
-    public Commit Commit { get; }
-    public Commit? ComparisonParent { get; }
-    public CommitFileChange[] Changes { get; }
-}

@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using GitReader;
 using ModelContextProtocol.Server;
+using SafeGitMcp.Tools.Responses;
 
 namespace SafeGitMcp.Tools;
 
