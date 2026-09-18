@@ -5,7 +5,7 @@
 ## Available tools
 
 - `get_current_changeset` returns the complete pre-commit unit of work: every path whose working-tree content differs from the local `HEAD` commit appears once, regardless of its index state. Each entry compares the committed baseline to the current working-tree file and includes hashes plus up to 1 MB of UTF-8 content for both sides. Binary or non-UTF-8 files are explicitly marked without attempting to render their contents.
-- `get_commit_by_sha` returns a structured lookup response containing `found`, an error when applicable, and commit metadata for a full SHA-1 hash.
+- `get_commit_by_sha` returns a structured lookup response containing `found`, an error when applicable, and complete commit-review data for a full SHA-1 hash: metadata, the primary parent used for comparison, top-level `fileCount` and `fileNames` aggregates, and every added, modified, or deleted file with baseline/current hashes and content snapshots.
 
 The server reads Git repository data through the GitReader NuGet package and never invokes the Git executable. Untracked-file discovery applies both GitReader's common development-file exclusions and the repository-root `.gitignore`.
 

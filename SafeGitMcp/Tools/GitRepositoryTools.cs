@@ -54,6 +54,8 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
             return new CommitLookupResponse(false, "No commit with that SHA exists in this repository.", null);
         }
 
+        var parent = await commit.GetPrimaryParentCommitAsync(CancellationToken.None);
+        var changes = await GetCommitChangesAsync(parent, commit);
         return new CommitLookupResponse(
             true,
             null,
@@ -66,7 +68,9 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
                 commit.Committer.MailAddress,
                 commit.Committer.Date,
                 commit.Subject,
-                commit.Body));
+                commit.Body,
+                parent?.Hash.ToString(),
+                changes));
     }
 
     private async Task<GitBlobContent?> ReadBlobContentAsync(Hash? hash) {
@@ -153,10 +157,50 @@ internal sealed class GitRepositoryTools(GitRepositoryContext repository) {
         }
 
         var headCommit = await head.GetHeadCommitAsync(CancellationToken.None);
-        var root = await headCommit.GetTreeRootAsync(CancellationToken.None);
+        return await GetCommitBlobHashesAsync(headCommit);
+    }
+
+    private async Task<Dictionary<string, Hash>> GetCommitBlobHashesAsync(Commit commit) {
+        var root = await commit.GetTreeRootAsync(CancellationToken.None);
         var blobs = new Dictionary<string, Hash>(StringComparer.Ordinal);
         AddTreeBlobs(root.Children, string.Empty, blobs);
         return blobs;
+    }
+
+    private async Task<CommitFileChange[]> GetCommitChangesAsync(Commit? parent, Commit commit) {
+        var baselineBlobs = parent is null ? new Dictionary<string, Hash>(StringComparer.Ordinal) : await GetCommitBlobHashesAsync(parent);
+        var currentBlobs = await GetCommitBlobHashesAsync(commit);
+        var paths = new HashSet<string>(baselineBlobs.Keys, StringComparer.Ordinal);
+        paths.UnionWith(currentBlobs.Keys);
+
+        var changes = new List<CommitFileChange>();
+        foreach (var path in paths.OrderBy(path => path, StringComparer.Ordinal)) {
+            var hasBaseline = baselineBlobs.TryGetValue(path, out var baselineBlob);
+            var hasCurrent = currentBlobs.TryGetValue(path, out var currentBlob);
+            if (hasBaseline && hasCurrent && baselineBlob.Equals(currentBlob)) {
+                continue;
+            }
+
+            Hash? baselineHash = hasBaseline ? (Hash?)baselineBlob : null;
+            Hash? currentHash = hasCurrent ? (Hash?)currentBlob : null;
+            changes.Add(new CommitFileChange(
+                path,
+                GetChangeType(hasBaseline, hasCurrent),
+                baselineHash?.ToString(),
+                await ReadBlobContentAsync(baselineHash),
+                currentHash?.ToString(),
+                await ReadBlobContentAsync(currentHash)));
+        }
+
+        return [.. changes];
+    }
+
+    private static string GetChangeType(bool hasBaseline, bool hasCurrent) {
+        return (hasBaseline, hasCurrent) switch {
+            (false, true) => "Added",
+            (true, false) => "Deleted",
+            _ => "Modified"
+        };
     }
 
     private static void AddTreeBlobs(IEnumerable<TreeEntry> entries, string directoryPath, Dictionary<string, Hash> blobs) {

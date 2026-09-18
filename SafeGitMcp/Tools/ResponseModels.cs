@@ -19,4 +19,16 @@ public sealed record CommitDetailsResponse(
     string? CommitterEmail,
     DateTimeOffset CommitterDate,
     string Subject,
-    string Body);
+    string Body,
+    string? ComparisonParentSha,
+    CommitFileChange[] Changes) {
+    public int FileCount => Changes.Length;
+    public string[] FileNames => [.. Changes.Select(change => change.Path)];
+}
+public sealed record CommitFileChange(
+    string Path,
+    string ChangeType,
+    string? BaselineHash,
+    GitBlobContent? BaselineContent,
+    string? CurrentHash,
+    GitBlobContent? CurrentContent);
